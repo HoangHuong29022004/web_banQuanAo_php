@@ -6,12 +6,47 @@ function updateCartCount(count) {
     }
 }
 
-// Hàm cập nhật thông tin tồn kho khi chọn size và màu
+// Hàm cập nhật số lượng
+function updateQuantity(button, change) {
+    const input = button.parentElement.querySelector('input');
+    const currentValue = parseInt(input.value) || 1;
+    const maxStock = parseInt(input.getAttribute('max')) || 100; // Giá trị mặc định nếu không có max
+    const minValue = parseInt(input.getAttribute('min')) || 1;
+    
+    let newValue = currentValue + change;
+    
+    // Kiểm tra giới hạn
+    if (newValue < minValue) {
+        newValue = minValue;
+    } else if (newValue > maxStock) {
+        newValue = maxStock;
+    }
+    
+    input.value = newValue;
+}
+
+// Thêm sự kiện cho input số lượng
+document.getElementById('quantityInput')?.addEventListener('change', function() {
+    const minValue = parseInt(this.getAttribute('min')) || 1;
+    const maxStock = parseInt(this.getAttribute('max')) || 100;
+    let value = parseInt(this.value) || minValue;
+    
+    // Kiểm tra giới hạn
+    if (value < minValue) {
+        value = minValue;
+    } else if (value > maxStock) {
+        value = maxStock;
+    }
+    
+    this.value = value;
+});
+
+// Cập nhật thông tin tồn kho khi chọn size và màu
 function updateStockInfo() {
     const size = document.querySelector('input[name="size"]:checked')?.value;
     const color = document.querySelector('input[name="color"]:checked')?.value;
     const stockInfo = document.getElementById('stock-info');
-    const quantityInput = document.querySelector('input[name="quantity"]');
+    const quantityInput = document.getElementById('quantityInput');
     
     if (size && color) {
         const variants = JSON.parse(document.getElementById('variants-data').value);

@@ -163,9 +163,9 @@ include 'includes/navbar.php';
                         <div class="form-group mb-4">
                             <label class="form-label">Số lượng:</label>
                             <div class="quantity-input">
-                                <button type="button" class="btn btn-outline-secondary" onclick="updateQuantity(-1)">-</button>
-                                <input type="number" name="quantity" value="1" min="1" class="form-control">
-                                <button type="button" class="btn btn-outline-secondary" onclick="updateQuantity(1)">+</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="updateQuantity(this, -1)">-</button>
+                                <input type="number" name="quantity" value="1" min="1" class="form-control" id="quantityInput">
+                                <button type="button" class="btn btn-outline-secondary" onclick="updateQuantity(this, 1)">+</button>
                             </div>
                             <small id="stock-info" class="text-muted"></small>
                         </div>

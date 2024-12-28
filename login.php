@@ -4,7 +4,11 @@ require_once 'config/database.php';
 
 // Nếu đã đăng nhập thì chuyển về trang chủ
 if (isset($_SESSION['user_id'])) {
-    header('Location: index.php');
+    if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin') {
+        header('Location: admin/index.php');
+    } else {
+        header('Location: index.php');
+    }
     exit();
 }
 
@@ -15,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
 
     // Kiểm tra email và mật khẩu
-    $sql = "SELECT * FROM users WHERE email = '$email' AND role != 'admin'";
+    $sql = "SELECT * FROM users WHERE email = '$email'";
     $result = mysqli_query($conn, $sql);
     $user = mysqli_fetch_assoc($result);
 
@@ -23,14 +27,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Đăng nhập thành công
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['fullname'];
+        $_SESSION['role'] = $user['role'];
         
-        // Kiểm tra nếu có trang redirect
-        if (isset($_SESSION['redirect_after_login'])) {
-            $redirect = $_SESSION['redirect_after_login'];
-            unset($_SESSION['redirect_after_login']);
-            header('Location: ' . $redirect);
+        // Chuyển hướng dựa vào role
+        if ($user['role'] == 'admin') {
+            header('Location: admin/index.php');
         } else {
-            header('Location: index.php');
+            // Kiểm tra nếu có trang redirect
+            if (isset($_SESSION['redirect_after_login'])) {
+                $redirect = $_SESSION['redirect_after_login'];
+                unset($_SESSION['redirect_after_login']);
+                header('Location: ' . $redirect);
+            } else {
+                header('Location: index.php');
+            }
         }
         exit();
     } else {

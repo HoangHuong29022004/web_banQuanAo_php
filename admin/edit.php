@@ -18,9 +18,6 @@ if ($user['role'] != 'admin') {
     exit();
 }
 
-require_once 'includes/header.php';
-require_once 'includes/sidebar.php';
-
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // Lấy thông tin sản phẩm
@@ -30,6 +27,14 @@ $sql = "SELECT p.*, pi.image_path
         WHERE p.id = $product_id";
 $result = mysqli_query($conn, $sql);
 $product = mysqli_fetch_assoc($result);
+
+// Lấy tất cả ảnh của sản phẩm
+$sql = "SELECT * FROM product_images WHERE product_id = $product_id ORDER BY is_main DESC";
+$images = mysqli_query($conn, $sql);
+
+// Lấy variants của sản phẩm
+$sql = "SELECT * FROM product_variants WHERE product_id = $product_id";
+$variants = mysqli_query($conn, $sql);
 
 if (!$product) {
     header('Location: index.php');
@@ -57,22 +62,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (mysqli_query($conn, $sql)) {
         // Xử lý upload ảnh mới
-        if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-            $image = $_FILES['image'];
-            $ext = pathinfo($image['name'], PATHINFO_EXTENSION);
-            $image_name = 'sp' . time() . '.' . $ext;
-            
-            if (move_uploaded_file($image['tmp_name'], "../../assets/images/products/" . $image_name)) {
-                // Xóa ảnh cũ
-                if ($product['image_path']) {
-                    unlink("../../assets/images/products/" . $product['image_path']);
+        if (!empty($_FILES['images']['name'][0])) {
+            // Xóa ảnh cũ
+            $sql = "SELECT image_path FROM product_images WHERE product_id = $product_id";
+            $old_images = mysqli_query($conn, $sql);
+            while ($old_image = mysqli_fetch_assoc($old_images)) {
+                unlink("../assets/images/products/" . $old_image['image_path']);
+            }
+            mysqli_query($conn, "DELETE FROM product_images WHERE product_id = $product_id");
+
+            // Thêm ảnh mới
+            foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
+                if ($_FILES['images']['error'][$key] == 0) {
+                    $image = $_FILES['images'];
+                    $ext = pathinfo($image['name'][$key], PATHINFO_EXTENSION);
+                    $image_name = 'sp' . time() . '_' . $key . '.' . $ext;
+                    
+                    if (move_uploaded_file($tmp_name, "../assets/images/products/" . $image_name)) {
+                        $is_main = ($key == 0) ? 1 : 0;
+                        $sql = "INSERT INTO product_images (product_id, image_path, is_main) 
+                                VALUES ($product_id, '$image_name', $is_main)";
+                        mysqli_query($conn, $sql);
+                    }
                 }
-                
-                // Cập nhật ảnh mới
-                $sql = "UPDATE product_images 
-                        SET image_path = '$image_name'
-                        WHERE product_id = $product_id AND is_main = 1";
-                mysqli_query($conn, $sql);
+            }
+        }
+
+        // Cập nhật variants
+        mysqli_query($conn, "DELETE FROM product_variants WHERE product_id = $product_id");
+        if (isset($_POST['variants'])) {
+            foreach ($_POST['variants'] as $variant) {
+                if (!empty($variant['size']) && !empty($variant['color']) && !empty($variant['stock'])) {
+                    $size = mysqli_real_escape_string($conn, $variant['size']);
+                    $color = mysqli_real_escape_string($conn, $variant['color']);
+                    $variant_stock = (int)$variant['stock'];
+                    
+                    $sql = "INSERT INTO product_variants (product_id, size, color, stock) 
+                            VALUES ($product_id, '$size', '$color', $variant_stock)";
+                    mysqli_query($conn, $sql);
+                }
             }
         }
 
@@ -82,8 +110,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Lấy danh sách danh mục
-$sql = "SELECT * FROM categories";
+$sql = "SELECT * FROM categories WHERE parent_id IS NOT NULL";
 $categories = mysqli_query($conn, $sql);
+
+require_once 'includes/header.php';
+require_once 'includes/sidebar.php';
 ?>
 
 <div class="col-md-9 col-lg-10 content">
@@ -140,22 +171,116 @@ $categories = mysqli_query($conn, $sql);
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Ảnh sản phẩm</label>
-                    <?php if ($product['image_path']): ?>
-                        <div class="mb-2">
-                            <img src="../../assets/images/products/<?php echo $product['image_path']; ?>" 
-                                 alt="Current image" style="max-width: 200px;">
-                        </div>
-                    <?php endif; ?>
-                    <input type="file" class="form-control" name="image" accept="image/*">
+                    <label class="form-label">Ảnh hiện tại</label>
+                    <div class="row">
+                        <?php while ($image = mysqli_fetch_assoc($images)): ?>
+                            <div class="col-md-2 mb-2">
+                                <img src="../assets/images/products/<?php echo $image['image_path']; ?>" 
+                                     class="img-thumbnail" alt="Product image">
+                                <?php if ($image['is_main']): ?>
+                                    <span class="badge bg-primary">Ảnh chính</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endwhile; ?>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Thay đổi ảnh (có thể chọn nhiều ảnh)</label>
+                    <input type="file" class="form-control" name="images[]" accept="image/*" multiple>
+                    <small class="text-muted">Để trống nếu không muốn thay đổi ảnh. Ảnh đầu tiên sẽ là ảnh chính</small>
+                </div>
+
+                <!-- Variants -->
+                <div class="mb-3">
+                    <label class="form-label">Biến thể sản phẩm</label>
+                    <div id="variants-container">
+                        <?php 
+                        $variant_count = 0;
+                        while ($variant = mysqli_fetch_assoc($variants)): 
+                        ?>
+                            <div class="variant-item border rounded p-3 mb-2">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Size</label>
+                                        <input type="text" class="form-control" 
+                                               name="variants[<?php echo $variant_count; ?>][size]"
+                                               value="<?php echo $variant['size']; ?>">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Màu sắc</label>
+                                        <input type="text" class="form-control" 
+                                               name="variants[<?php echo $variant_count; ?>][color]"
+                                               value="<?php echo $variant['color']; ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Số lượng</label>
+                                        <input type="number" class="form-control" 
+                                               name="variants[<?php echo $variant_count; ?>][stock]"
+                                               value="<?php echo $variant['stock']; ?>">
+                                    </div>
+                                    <div class="col-md-1 d-flex align-items-end">
+                                        <button type="button" class="btn btn-danger btn-sm remove-variant">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php 
+                            $variant_count++;
+                        endwhile; 
+                        ?>
+                    </div>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="add-variant">
+                        <i class="bi bi-plus"></i> Thêm biến thể
+                    </button>
                 </div>
 
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> Cập nhật
+                    <i class="bi bi-check-lg"></i> Cập nhật sản phẩm
                 </button>
             </form>
         </div>
     </div>
 </div>
 
-<?php require_once '../includes/footer.php'; ?> 
+<script>
+document.getElementById('add-variant').addEventListener('click', function() {
+    const container = document.getElementById('variants-container');
+    const variantCount = container.children.length;
+    
+    const variantHtml = `
+        <div class="variant-item border rounded p-3 mb-2">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">Size</label>
+                    <input type="text" class="form-control" name="variants[${variantCount}][size]">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Màu sắc</label>
+                    <input type="text" class="form-control" name="variants[${variantCount}][color]">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Số lượng</label>
+                    <input type="number" class="form-control" name="variants[${variantCount}][stock]">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-danger btn-sm remove-variant">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', variantHtml);
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.remove-variant')) {
+        e.target.closest('.variant-item').remove();
+    }
+});
+</script>
+
+<?php require_once 'includes/footer.php'; ?> 
