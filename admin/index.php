@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Kiểm tra role admin
+// Kiểm tra role admin từ database
 $user_id = $_SESSION['user_id'];
 $sql = "SELECT role FROM users WHERE id = $user_id";
 $result = mysqli_query($conn, $sql);
@@ -19,10 +19,11 @@ if ($user['role'] != 'admin') {
     exit();
 }
 
+// Include header và sidebar
 require_once 'includes/header.php';
 require_once 'includes/sidebar.php';
 
-// Lấy danh sách sản phẩm
+// Query lấy danh sách sản phẩm kèm thông tin danh mục và ảnh chính
 $sql = "SELECT p.*, c.name as category_name, pi.image_path 
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
@@ -31,7 +32,9 @@ $sql = "SELECT p.*, c.name as category_name, pi.image_path
 $result = mysqli_query($conn, $sql);
 ?>
 
+<!-- Phần hiển thị danh sách -->
 <div class="col-md-9 col-lg-10 content">
+    <!-- Header với nút thêm mới -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Quản lý sản phẩm</h2>
         <a href="add.php" class="btn btn-primary">
@@ -39,6 +42,7 @@ $result = mysqli_query($conn, $sql);
         </a>
     </div>
 
+    <!-- Bảng danh sách sản phẩm -->
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
@@ -56,6 +60,7 @@ $result = mysqli_query($conn, $sql);
                     <tbody>
                         <?php while ($product = mysqli_fetch_assoc($result)): ?>
                             <tr>
+                                <!-- Hiển thị ảnh sản phẩm -->
                                 <td>
                                     <?php if ($product['image_path']): ?>
                                         <img src="../assets/images/products/<?php echo $product['image_path']; ?>" 
@@ -67,20 +72,25 @@ $result = mysqli_query($conn, $sql);
                                         </div>
                                     <?php endif; ?>
                                 </td>
+                                
+                                <!-- Thông tin sản phẩm -->
                                 <td><?php echo $product['name']; ?></td>
                                 <td><?php echo $product['category_name']; ?></td>
                                 <td><?php echo number_format($product['price']); ?>đ</td>
                                 <td>
                                     <?php echo $product['sale_price'] ? number_format($product['sale_price']) . 'đ' : '-'; ?>
                                 </td>
+                                
+                                <!-- Nút thao tác -->
                                 <td>
                                     <a href="edit.php?id=<?php echo $product['id']; ?>" 
-                                       class="btn btn-sm btn-outline-primary">
+                                       class="btn btn-sm btn-outline-primary" title="Sửa">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <a href="delete.php?id=<?php echo $product['id']; ?>" 
-                                       class="btn btn-sm btn-outline-danger"
-                                       onclick="return confirm('Bạn có chắc muốn xóa sản phẩm này?')">
+                                       class="btn btn-sm btn-outline-danger" 
+                                       onclick="return confirm('Bạn có chắc muốn xóa sản phẩm này?')"
+                                       title="Xóa">
                                         <i class="bi bi-trash"></i>
                                     </a>
                                 </td>

@@ -2,7 +2,7 @@
 session_start();
 require_once '../config/database.php';
 
-// Kiểm tra đăng nhập và quyền admin
+// Kiểm tra quyền admin
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
     exit();
@@ -18,8 +18,9 @@ if ($user['role'] != 'admin') {
     exit();
 }
 
-// Xử lý thêm sản phẩm
+// Xử lý thêm sản phẩm khi submit form
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Lấy và làm sạch dữ liệu từ form
     $name = mysqli_real_escape_string($conn, $_POST['name']);
     $category_id = (int)$_POST['category_id'];
     $price = (float)$_POST['price'];
@@ -27,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $description = mysqli_real_escape_string($conn, $_POST['description']);
     $stock = (int)$_POST['stock'];
 
-    // Thêm sản phẩm
+    // Thêm sản phẩm vào database
     $sql = "INSERT INTO products (category_id, name, description, price, sale_price, stock) 
             VALUES ($category_id, '$name', '$description', $price, " . ($sale_price ? $sale_price : "NULL") . ", $stock)";
     
@@ -42,9 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $ext = pathinfo($image['name'][$key], PATHINFO_EXTENSION);
                     $image_name = 'sp' . time() . '_' . $key . '.' . $ext;
                     
+                    // Upload ảnh và lưu thông tin vào database
                     if (move_uploaded_file($tmp_name, "../assets/images/products/" . $image_name)) {
-                        // Ảnh đầu tiên sẽ là ảnh chính
-                        $is_main = ($key == 0) ? 1 : 0;
+                        $is_main = ($key == 0) ? 1 : 0; // Ảnh đầu tiên là ảnh chính
                         $sql = "INSERT INTO product_images (product_id, image_path, is_main) 
                                 VALUES ($product_id, '$image_name', $is_main)";
                         mysqli_query($conn, $sql);
@@ -53,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // Thêm variants
+        // Thêm các biến thể sản phẩm
         if (isset($_POST['variants'])) {
             foreach ($_POST['variants'] as $variant) {
                 if (!empty($variant['size']) && !empty($variant['color']) && !empty($variant['stock'])) {
@@ -73,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Lấy danh sách danh mục
+// Lấy danh sách danh mục cho dropdown
 $sql = "SELECT * FROM categories WHERE parent_id IS NOT NULL";
 $categories = mysqli_query($conn, $sql);
 
@@ -81,7 +82,9 @@ require_once 'includes/header.php';
 require_once 'includes/sidebar.php';
 ?>
 
+<!-- Form thêm sản phẩm -->
 <div class="col-md-9 col-lg-10 content">
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Thêm sản phẩm mới</h2>
         <a href="index.php" class="btn btn-outline-primary">
@@ -89,14 +92,17 @@ require_once 'includes/sidebar.php';
         </a>
     </div>
 
+    <!-- Form -->
     <div class="card">
         <div class="card-body">
             <form method="post" enctype="multipart/form-data">
+                <!-- Các trường thông tin cơ bản -->
                 <div class="mb-3">
                     <label class="form-label">Tên sản phẩm</label>
                     <input type="text" class="form-control" name="name" required>
                 </div>
 
+                <!-- Dropdown danh mục -->
                 <div class="mb-3">
                     <label class="form-label">Danh mục</label>
                     <select class="form-select" name="category_id" required>
@@ -108,6 +114,7 @@ require_once 'includes/sidebar.php';
                     </select>
                 </div>
 
+                <!-- Giá và giá khuyến mãi -->
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Giá</label>
@@ -119,26 +126,18 @@ require_once 'includes/sidebar.php';
                     </div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Số lượng</label>
-                    <input type="number" class="form-control" name="stock" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Mô tả</label>
-                    <textarea class="form-control" name="description" rows="3"></textarea>
-                </div>
-
+                <!-- Upload nhiều ảnh -->
                 <div class="mb-3">
                     <label class="form-label">Ảnh sản phẩm (có thể chọn nhiều ảnh)</label>
                     <input type="file" class="form-control" name="images[]" accept="image/*" multiple required>
                     <small class="text-muted">Ảnh đầu tiên sẽ là ảnh chính</small>
                 </div>
 
-                <!-- Variants -->
+                <!-- Phần variants -->
                 <div class="mb-3">
                     <label class="form-label">Biến thể sản phẩm</label>
                     <div id="variants-container">
+                        <!-- Template cho variant -->
                         <div class="variant-item border rounded p-3 mb-2">
                             <div class="row">
                                 <div class="col-md-4">
@@ -174,11 +173,14 @@ require_once 'includes/sidebar.php';
     </div>
 </div>
 
+<!-- JavaScript xử lý thêm/xóa variant -->
 <script>
+// Thêm variant mới
 document.getElementById('add-variant').addEventListener('click', function() {
     const container = document.getElementById('variants-container');
     const variantCount = container.children.length;
     
+    // Template HTML cho variant mới
     const variantHtml = `
         <div class="variant-item border rounded p-3 mb-2">
             <div class="row">
@@ -203,9 +205,11 @@ document.getElementById('add-variant').addEventListener('click', function() {
         </div>
     `;
     
+    // Thêm variant vào container
     container.insertAdjacentHTML('beforeend', variantHtml);
 });
 
+// Xóa variant
 document.addEventListener('click', function(e) {
     if (e.target.closest('.remove-variant')) {
         e.target.closest('.variant-item').remove();

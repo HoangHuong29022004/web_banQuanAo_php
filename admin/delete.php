@@ -2,7 +2,7 @@
 session_start();
 require_once '../config/database.php';
 
-// Kiểm tra đăng nhập và quyền admin
+// Kiểm tra quyền admin
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
     exit();
@@ -21,7 +21,7 @@ if ($user['role'] != 'admin') {
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($product_id) {
-    // Xóa ảnh sản phẩm
+    // Xóa các ảnh sản phẩm từ thư mục
     $sql = "SELECT image_path FROM product_images WHERE product_id = $product_id";
     $result = mysqli_query($conn, $sql);
     while ($image = mysqli_fetch_assoc($result)) {
@@ -30,9 +30,11 @@ if ($product_id) {
         }
     }
 
-    // Xóa sản phẩm
+    // Xóa sản phẩm từ database
+    // Các bảng liên quan sẽ tự động xóa do có ràng buộc CASCADE
     $sql = "DELETE FROM products WHERE id = $product_id";
     mysqli_query($conn, $sql);
 }
 
+// Chuyển về trang danh sách
 header('Location: index.php'); 
