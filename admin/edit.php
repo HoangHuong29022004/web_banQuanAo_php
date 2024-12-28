@@ -2,7 +2,7 @@
 session_start();
 require_once '../config/database.php';
 
-// Kiểm tra đăng nhập và quyền admin
+// Kiểm tra quyền admin
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
     exit();
@@ -18,9 +18,10 @@ if ($user['role'] != 'admin') {
     exit();
 }
 
+// Lấy ID sản phẩm từ URL
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-// Lấy thông tin sản phẩm
+// Lấy thông tin sản phẩm hiện tại
 $sql = "SELECT p.*, pi.image_path 
         FROM products p
         LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
@@ -36,13 +37,15 @@ $images = mysqli_query($conn, $sql);
 $sql = "SELECT * FROM product_variants WHERE product_id = $product_id";
 $variants = mysqli_query($conn, $sql);
 
+// Kiểm tra sản phẩm tồn tại
 if (!$product) {
     header('Location: index.php');
     exit();
 }
 
-// Xử lý cập nhật sản phẩm
+// Xử lý cập nhật sản phẩm khi submit form
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Lấy và làm sạch dữ liệu từ form
     $name = mysqli_real_escape_string($conn, $_POST['name']);
     $category_id = (int)$_POST['category_id'];
     $price = (float)$_POST['price'];
@@ -50,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $description = mysqli_real_escape_string($conn, $_POST['description']);
     $stock = (int)$_POST['stock'];
 
-    // Cập nhật sản phẩm
+    // Cập nhật thông tin cơ bản của sản phẩm
     $sql = "UPDATE products 
             SET category_id = $category_id,
                 name = '$name',
@@ -61,17 +64,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             WHERE id = $product_id";
     
     if (mysqli_query($conn, $sql)) {
-        // Xử lý upload ảnh mới
+        // Xử lý upload ảnh mới nếu có
         if (!empty($_FILES['images']['name'][0])) {
-            // Xóa ảnh cũ
+            // Xóa các ảnh cũ từ thư mục và database
             $sql = "SELECT image_path FROM product_images WHERE product_id = $product_id";
             $old_images = mysqli_query($conn, $sql);
             while ($old_image = mysqli_fetch_assoc($old_images)) {
-                unlink("../assets/images/products/" . $old_image['image_path']);
+                if ($old_image['image_path']) {
+                    unlink("../assets/images/products/" . $old_image['image_path']);
+                }
             }
             mysqli_query($conn, "DELETE FROM product_images WHERE product_id = $product_id");
 
-            // Thêm ảnh mới
+            // Upload và lưu các ảnh mới
             foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
                 if ($_FILES['images']['error'][$key] == 0) {
                     $image = $_FILES['images'];
@@ -79,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $image_name = 'sp' . time() . '_' . $key . '.' . $ext;
                     
                     if (move_uploaded_file($tmp_name, "../assets/images/products/" . $image_name)) {
-                        $is_main = ($key == 0) ? 1 : 0;
+                        $is_main = ($key == 0) ? 1 : 0; // Ảnh đầu tiên là ảnh chính
                         $sql = "INSERT INTO product_images (product_id, image_path, is_main) 
                                 VALUES ($product_id, '$image_name', $is_main)";
                         mysqli_query($conn, $sql);
@@ -109,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Lấy danh sách danh mục
+// Lấy danh sách danh mục cho dropdown
 $sql = "SELECT * FROM categories WHERE parent_id IS NOT NULL";
 $categories = mysqli_query($conn, $sql);
 
@@ -117,7 +122,9 @@ require_once 'includes/header.php';
 require_once 'includes/sidebar.php';
 ?>
 
+<!-- Form chỉnh sửa sản phẩm -->
 <div class="col-md-9 col-lg-10 content">
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Sửa sản phẩm</h2>
         <a href="index.php" class="btn btn-outline-primary">
@@ -125,15 +132,18 @@ require_once 'includes/sidebar.php';
         </a>
     </div>
 
+    <!-- Form -->
     <div class="card">
         <div class="card-body">
             <form method="post" enctype="multipart/form-data">
+                <!-- Thông tin cơ bản -->
                 <div class="mb-3">
                     <label class="form-label">Tên sản phẩm</label>
                     <input type="text" class="form-control" name="name" 
                            value="<?php echo $product['name']; ?>" required>
                 </div>
 
+                <!-- Dropdown danh mục -->
                 <div class="mb-3">
                     <label class="form-label">Danh mục</label>
                     <select class="form-select" name="category_id" required>
@@ -146,6 +156,7 @@ require_once 'includes/sidebar.php';
                     </select>
                 </div>
 
+                <!-- Giá và giá khuyến mãi -->
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Giá</label>
@@ -159,17 +170,7 @@ require_once 'includes/sidebar.php';
                     </div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Số lượng</label>
-                    <input type="number" class="form-control" name="stock"
-                           value="<?php echo $product['stock']; ?>" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Mô tả</label>
-                    <textarea class="form-control" name="description" rows="3"><?php echo $product['description']; ?></textarea>
-                </div>
-
+                <!-- Hiển thị ảnh hiện tại -->
                 <div class="mb-3">
                     <label class="form-label">Ảnh hiện tại</label>
                     <div class="row">
@@ -185,6 +186,7 @@ require_once 'includes/sidebar.php';
                     </div>
                 </div>
 
+                <!-- Upload ảnh mới -->
                 <div class="mb-3">
                     <label class="form-label">Thay đổi ảnh (có thể chọn nhiều ảnh)</label>
                     <input type="file" class="form-control" name="images[]" accept="image/*" multiple>
@@ -244,11 +246,14 @@ require_once 'includes/sidebar.php';
     </div>
 </div>
 
+<!-- JavaScript xử lý thêm/xóa variant -->
 <script>
+// Thêm variant mới
 document.getElementById('add-variant').addEventListener('click', function() {
     const container = document.getElementById('variants-container');
     const variantCount = container.children.length;
     
+    // Template HTML cho variant mới
     const variantHtml = `
         <div class="variant-item border rounded p-3 mb-2">
             <div class="row">
@@ -273,9 +278,11 @@ document.getElementById('add-variant').addEventListener('click', function() {
         </div>
     `;
     
+    // Thêm variant vào container
     container.insertAdjacentHTML('beforeend', variantHtml);
 });
 
+// Xóa variant
 document.addEventListener('click', function(e) {
     if (e.target.closest('.remove-variant')) {
         e.target.closest('.variant-item').remove();
